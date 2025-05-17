@@ -83,6 +83,7 @@ def martingale_strategy(rounds, base_bet=1.0, cashout=2.0, bankroll=100):
         "max_loss_streak": max_loss_streak,
     }
 
+
 def paroli_strategy(rounds, base_bet=1.0, cashout=2.0, bankroll=100):
     balance = bankroll
     history = []

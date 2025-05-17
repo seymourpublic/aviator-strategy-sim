@@ -5,6 +5,7 @@ from simulator import simulate_strategy
 app = Flask(__name__)
 CORS(app)
 
+
 @app.route('/simulate', methods=['GET'])
 def simulate():
     strategy = request.args.get('strategy', 'early')
@@ -16,6 +17,7 @@ def simulate():
 
     result = simulate_strategy(strategy, rounds, bet, bankroll, target_profit, percent_bet)
     return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=8000)

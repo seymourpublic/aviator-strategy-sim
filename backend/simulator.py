@@ -33,4 +33,3 @@ def simulate_strategy(strategy, rounds, bet, bankroll=100, target_profit=50, per
         return target_profit_strategy(rounds, base_bet=bet, bankroll=bankroll, target_profit=target_profit)
     else:
         return {"error": "Invalid strategy"}
-
