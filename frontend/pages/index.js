@@ -6,6 +6,7 @@ import {
   Chart as ChartJS,
   LineElement,
   CategoryScale,
+  RadialLinearScale,
   LinearScale,
   PointElement,
   Tooltip,
@@ -216,7 +217,23 @@ export default function Home() {
       {historyLog.length >= 2 && (
         <div style={{ marginBottom: "2rem" }}>
           <h3>📊 Strategy Comparison</h3>
-          <Radar data={comparisonData()} />
+          <Radar
+  data={comparisonData()}
+  options={{
+    scales: {
+      r: {
+        beginAtZero: true,
+        pointLabels: {
+          font: { size: 14 },
+        },
+        ticks: {
+          backdropColor: 'transparent',
+          precision: 0,
+        },
+      }
+    }
+  }}
+/>
         </div>
       )}
 
