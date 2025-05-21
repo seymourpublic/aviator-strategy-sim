@@ -114,6 +114,11 @@ export default function Home() {
   const [filterStrategy, setFilterStrategy] = useState("");
   const [minProfit, setMinProfit] = useState("");
   const [highlightedEntry, setHighlightedEntry] = useState(null);
+  const [cashOutTarget, setCashOutTarget]     = useState(2.0);        // multiplier or absolute profit
+  const [betSequence, setBetSequence]         = useState("1,2,4");    // comma-separated string
+  const [maxBet, setMaxBet]                   = useState(20);
+  const [stopLoss, setStopLoss]               = useState(50);         // absolute bankroll value
+  const [takeProfit, setTakeProfit]           = useState(200);
   
   // New state for strategy comparison
   const [compareMode, setCompareMode] = useState(false);
