@@ -1,5 +1,3 @@
-// frontend/pages/index.js
-
 import { useState, useEffect } from "react";
 import { Line, Bar, Radar } from "react-chartjs-2";
 import {
@@ -96,7 +94,8 @@ const strategyColors = {
   martingale: { border: "rgba(153, 102, 255, 1)", bg: "rgba(153, 102, 255, 0.2)" },
   paroli: { border: "rgba(255, 159, 64, 1)", bg: "rgba(255, 159, 64, 0.2)" },
   fixed_percent: { border: "rgba(29, 209, 161, 1)", bg: "rgba(29, 209, 161, 0.2)" },
-  target_profit: { border: "rgba(238, 90, 36, 1)", bg: "rgba(238, 90, 36, 0.2)" }
+  target_profit: { border: "rgba(238, 90, 36, 1)", bg: "rgba(238, 90, 36, 0.2)" },
+  custom: { border: "rgba(156, 39, 176, 1)", bg: "rgba(156, 39, 176, 0.2)" }
 };
 
 export default function Home() {
@@ -114,11 +113,14 @@ export default function Home() {
   const [filterStrategy, setFilterStrategy] = useState("");
   const [minProfit, setMinProfit] = useState("");
   const [highlightedEntry, setHighlightedEntry] = useState(null);
-  const [cashOutTarget, setCashOutTarget]     = useState(2.0);        // multiplier or absolute profit
-  const [betSequence, setBetSequence]         = useState("1,2,4");    // comma-separated string
-  const [maxBet, setMaxBet]                   = useState(20);
-  const [stopLoss, setStopLoss]               = useState(50);         // absolute bankroll value
-  const [takeProfit, setTakeProfit]           = useState(200);
+  
+  // Custom strategy parameters
+  const [cashOutTarget, setCashOutTarget] = useState(2.0);
+  const [betSequence, setBetSequence] = useState("1,2,4");
+  const [maxBet, setMaxBet] = useState(20);
+  const [stopLoss, setStopLoss] = useState(50);
+  const [takeProfit, setTakeProfit] = useState(200);
+  const [progressionType, setProgressionType] = useState("loss");
   
   // New state for strategy comparison
   const [compareMode, setCompareMode] = useState(false);
@@ -132,14 +134,8 @@ export default function Home() {
     bet: 1.0,
   });
 
-  useEffect(() => {
-    const stored = localStorage.getItem("aviator_history");
-    if (stored) setHistoryLog(JSON.parse(stored));
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("aviator_history", JSON.stringify(historyLog));
-  }, [historyLog]);
+  // Custom Strategy Builder mode
+  const [showCustomBuilder, setShowCustomBuilder] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("aviator_history");
@@ -155,9 +151,13 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem("aviator_history", JSON.stringify(historyLog));
+  }, [historyLog]);
+
   const comparisonData = () => {
     const [first, second] = historyLog.slice(0, 2);
-    if (!first || !second) return null;
+    if (!first || second) return null;
     const stat1 = computeStats(first.json.history, first.bankroll);
     const stat2 = computeStats(second.json.history, second.bankroll);
     return {
@@ -248,6 +248,16 @@ export default function Home() {
         percent_bet: percentBet
       });
 
+      // Add custom strategy parameters if custom strategy is selected
+      if (strategy === "custom") {
+        params.append('cashout_target', cashOutTarget);
+        params.append('bet_sequence', betSequence);
+        params.append('max_bet', maxBet);
+        params.append('stop_loss', stopLoss);
+        params.append('take_profit', takeProfit);
+        params.append('progression_type', progressionType);
+      }
+
       const res = await fetch(`http://localhost:8000/simulate?${params.toString()}`);
       const json = await res.json();
 
@@ -257,7 +267,25 @@ export default function Home() {
       } else {
         setData(json);
         setStats(computeStats(json.history));
-        const newEntry = { strategy, bet, rounds, bankroll, targetProfit, percentBet, json, timestamp: new Date().toISOString() };
+        const newEntry = { 
+          strategy, 
+          bet, 
+          rounds, 
+          bankroll, 
+          targetProfit, 
+          percentBet, 
+          json, 
+          timestamp: new Date().toISOString(),
+          // Include custom strategy parameters
+          customParams: strategy === "custom" ? {
+            cashOutTarget,
+            betSequence,
+            maxBet,
+            stopLoss,
+            takeProfit,
+            progressionType
+          } : null
+        };
         setHistoryLog([newEntry, ...historyLog]);
         setError(null);
       }
@@ -288,6 +316,16 @@ export default function Home() {
           target_profit: targetProfit,
           percent_bet: percentBet
         });
+
+        // Add custom strategy parameters if comparing custom strategy
+        if (strat === "custom") {
+          params.append('cashout_target', cashOutTarget);
+          params.append('bet_sequence', betSequence);
+          params.append('max_bet', maxBet);
+          params.append('stop_loss', stopLoss);
+          params.append('take_profit', takeProfit);
+          params.append('progression_type', progressionType);
+        }
 
         const res = await fetch(`http://localhost:8000/simulate?${params.toString()}`);
         const json = await res.json();
@@ -380,42 +418,314 @@ export default function Home() {
     downloadCSV(rows, "strategy_comparison.csv");
   };
 
+  const renderCustomStrategyBuilder = () => (
+    <div style={{ 
+      background: "#f8f9fa", 
+      padding: "1.5rem", 
+      borderRadius: "8px", 
+      marginBottom: "2rem",
+      border: "2px solid #e9ecef"
+    }}>
+      <h3 style={{ color: "#6f42c1", marginBottom: "1rem" }}>🔧 Custom Strategy Builder</h3>
+      
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.5rem" }}>
+        {/* Cash-out Settings */}
+        <div style={{ background: "white", padding: "1rem", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+          <h4 style={{ marginBottom: "0.8rem", color: "#495057" }}>🎯 Cash-out Target</h4>
+          <div style={{ marginBottom: "0.8rem" }}>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Multiplier:&nbsp;</label>
+            <input
+              type="number"
+              value={cashOutTarget}
+              onChange={(e) => setCashOutTarget(parseFloat(e.target.value) || 2.0)}
+              step="0.1"
+              min="1.01"
+              style={{ width: "100%", padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+            />
+            <small style={{ color: "#6c757d" }}>Minimum 1.01x</small>
+          </div>
+        </div>
+
+        {/* Bet Progression */}
+        <div style={{ background: "white", padding: "1rem", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+          <h4 style={{ marginBottom: "0.8rem", color: "#495057" }}>📈 Bet Progression</h4>
+          <div style={{ marginBottom: "0.8rem" }}>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Bet Sequence:&nbsp;</label>
+            <input
+              type="text"
+              value={betSequence}
+              onChange={(e) => setBetSequence(e.target.value)}
+              placeholder="e.g., 1,2,4,8"
+              style={{ width: "100%", padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+            />
+            <small style={{ color: "#6c757d" }}>Comma-separated values</small>
+          </div>
+          
+          <div style={{ marginBottom: "0.8rem" }}>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Progression Type:&nbsp;</label>
+            <select 
+              value={progressionType} 
+              onChange={(e) => setProgressionType(e.target.value)}
+              style={{ width: "100%", padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+            >
+              <option value="loss">Increase on Loss (Martingale-style)</option>
+              <option value="win">Increase on Win (Paroli-style)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Max Bet Size:&nbsp;</label>
+            <input
+              type="number"
+              value={maxBet}
+              onChange={(e) => setMaxBet(parseFloat(e.target.value) || 20)}
+              step="1"
+              min="1"
+              style={{ width: "100%", padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+            />
+          </div>
+        </div>
+
+        {/* Risk Management */}
+        <div style={{ background: "white", padding: "1rem", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+          <h4 style={{ marginBottom: "0.8rem", color: "#495057" }}>⚠️ Risk Management</h4>
+          <div style={{ marginBottom: "0.8rem" }}>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Stop Loss (Balance):&nbsp;</label>
+            <input
+              type="number"
+              value={stopLoss}
+              onChange={(e) => setStopLoss(parseFloat(e.target.value) || 50)}
+              step="5"
+              min="0"
+              style={{ width: "100%", padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+            />
+            <small style={{ color: "#dc3545" }}>Stop when balance drops to this level</small>
+          </div>
+          
+          <div>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Take Profit (Balance):&nbsp;</label>
+            <input
+              type="number"
+              value={takeProfit}
+              onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 200)}
+              step="10"
+              min="1"
+              style={{ width: "100%", padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+            />
+            <small style={{ color: "#28a745" }}>Stop when balance reaches this level</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Strategy Preview */}
+      <div style={{ 
+        background: "#e9ecef", 
+        padding: "1rem", 
+        borderRadius: "6px", 
+        marginTop: "1rem",
+        border: "1px solid #dee2e6"
+      }}>
+        <h5 style={{ marginBottom: "0.5rem", color: "#495057" }}>📋 Strategy Summary</h5>
+        <p style={{ margin: "0.2rem 0", fontSize: "0.9rem" }}>
+          <strong>Cash out at:</strong> {cashOutTarget}x multiplier
+        </p>
+        <p style={{ margin: "0.2rem 0", fontSize: "0.9rem" }}>
+          <strong>Bet sequence:</strong> {betSequence} (Max: {maxBet})
+        </p>
+        <p style={{ margin: "0.2rem 0", fontSize: "0.9rem" }}>
+          <strong>Progression:</strong> {progressionType === "loss" ? "Increase after losses" : "Increase after wins"}
+        </p>
+        <p style={{ margin: "0.2rem 0", fontSize: "0.9rem" }}>
+          <strong>Risk limits:</strong> Stop loss at {stopLoss}, Take profit at {takeProfit}
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ padding: "2rem" }}>
       <h1>Aviator Strategy Simulator</h1>
 
       {/* Highlighted Best Performing Run */}
       {highlightedEntry && (
-        <div style={{ background: "#e0ffe0", padding: "1rem", marginBottom: "1rem" }}>
+        <div style={{ background: "#e0ffe0", padding: "1rem", marginBottom: "1rem", borderRadius: "6px" }}>
           <strong>🏆 Best Run:</strong> {highlightedEntry.strategy} - R{highlightedEntry.json.final_balance.toFixed(2)}
         </div>
       )}
       
-      {/* Tabs for Single/Compare mode */}
-      <div style={{ marginBottom: "1.5rem" }}>
+      {/* Tabs for Single/Compare/Custom mode */}
+      <div style={{ marginBottom: "1.5rem", display: "flex", gap: "4px" }}>
         <button 
-          onClick={() => setCompareMode(false)}
+          onClick={() => {
+            setCompareMode(false);
+            setShowCustomBuilder(false);
+          }}
           style={{ 
             padding: "0.5rem 1rem", 
-            fontWeight: !compareMode ? "bold" : "normal",
-            background: !compareMode ? "#e0f7ff" : "#f0f0f0"
+            fontWeight: !compareMode && !showCustomBuilder ? "bold" : "normal",
+            background: !compareMode && !showCustomBuilder ? "#e0f7ff" : "#f0f0f0",
+            border: "1px solid #ddd",
+            borderRadius: "4px 4px 0 0"
           }}
         >
           Single Strategy
         </button>
         <button 
-          onClick={() => setCompareMode(true)}
+          onClick={() => {
+            setCompareMode(true);
+            setShowCustomBuilder(false);
+          }}
           style={{ 
             padding: "0.5rem 1rem", 
-            fontWeight: compareMode ? "bold" : "normal",
-            background: compareMode ? "#e0f7ff" : "#f0f0f0"
+            fontWeight: compareMode && !showCustomBuilder ? "bold" : "normal",
+            background: compareMode && !showCustomBuilder ? "#e0f7ff" : "#f0f0f0",
+            border: "1px solid #ddd",
+            borderRadius: "4px 4px 0 0"
           }}
         >
           🔍 Compare Strategies
         </button>
+        <button 
+          onClick={() => {
+            setCompareMode(false);
+            setShowCustomBuilder(true);
+            setStrategy("custom");
+          }}
+          style={{ 
+            padding: "0.5rem 1rem", 
+            fontWeight: showCustomBuilder ? "bold" : "normal",
+            background: showCustomBuilder ? "#f0e6ff" : "#f0f0f0",
+            border: "1px solid #ddd",
+            borderRadius: "4px 4px 0 0",
+            color: showCustomBuilder ? "#6f42c1" : "#000"
+          }}
+        >
+          🔧 Custom Builder
+        </button>
       </div>
 
-      {!compareMode ? (
+      {showCustomBuilder ? (
+        // Custom Strategy Builder Mode
+        <>
+          {renderCustomStrategyBuilder()}
+          
+          <div style={{ marginBottom: "1rem" }}>
+            <label>Rounds:&nbsp;</label>
+            <input
+              type="number"
+              value={rounds}
+              onChange={(e) => setRounds(e.target.value)}
+              style={{ padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+            />
+          </div>
+
+          <div style={{ marginBottom: "1rem" }}>
+            <label>Starting Bankroll:&nbsp;</label>
+            <input
+              type="number"
+              value={bankroll}
+              onChange={(e) => setBankroll(e.target.value)}
+              style={{ padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+            />
+          </div>
+
+          <button 
+            onClick={simulate}
+            style={{ 
+              padding: "0.8rem 1.5rem", 
+              backgroundColor: "#6f42c1", 
+              color: "white", 
+              border: "none", 
+              borderRadius: "6px",
+              fontSize: "1rem",
+              fontWeight: "500"
+            }}
+          >
+            🚀 Test Custom Strategy
+          </button>
+
+          {error && <p style={{ color: "red", marginTop: "1rem" }}>{error}</p>}
+
+          {data && (
+            <div style={{ marginTop: "2rem" }}>
+              <div style={{ 
+                background: "#f8f9fa", 
+                padding: "1.5rem", 
+                borderRadius: "8px", 
+                marginBottom: "1.5rem",
+                border: "1px solid #e9ecef"
+              }}>
+                <h3>📊 Results Summary</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+                  <div>
+                    <h4 style={{ margin: "0 0 0.5rem 0", color: data.final_balance >= bankroll ? "#28a745" : "#dc3545" }}>
+                      Final Balance: R{data.final_balance.toFixed(2)}
+                    </h4>
+                    {data.target_reached && <p style={{ color: "#28a745", margin: "0.2rem 0" }}>✅ Take Profit Target Reached!</p>}
+                    {data.ruin_occurred && <p style={{ color: "#dc3545", margin: "0.2rem 0" }}>⚠️ Stop Loss Triggered</p>}
+                  </div>
+                  
+                  {data.max_loss_streak !== null && (
+                    <div>
+                      <p style={{ margin: "0.2rem 0" }}><strong>Max Loss Streak:</strong> {data.max_loss_streak}</p>
+                      <p style={{ margin: "0.2rem 0" }}><strong>Rounds Played:</strong> {data.rounds_played || data.history.length}</p>
+                    </div>
+                  )}
+                  
+                  {stats && (
+                    <div>
+                      <p style={{ margin: "0.2rem 0" }}><strong>Max Drawdown:</strong> {(stats.maxDrawdown * 100).toFixed(2)}%</p>
+                      <p style={{ margin: "0.2rem 0" }}><strong>ROI:</strong> {stats.roi.toFixed(2)}%</p>
+                      <p style={{ margin: "0.2rem 0" }}><strong>Win Rate:</strong> {stats.winRate.toFixed(2)}%</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Line
+                data={{
+                  labels: data.history.map((_, i) => i),
+                  datasets: [
+                    {
+                      label: "Balance Over Time",
+                      data: data.history,
+                      fill: false,
+                      borderColor: "#6f42c1",
+                      backgroundColor: "rgba(111, 66, 193, 0.1)",
+                      tension: 0.1,
+                    },
+                    // Add stop loss and take profit lines
+                    {
+                      label: "Stop Loss",
+                      data: Array(data.history.length).fill(stopLoss),
+                      fill: false,
+                      borderColor: "#dc3545",
+                      borderDash: [5, 5],
+                      pointRadius: 0,
+                    },
+                    {
+                      label: "Take Profit",
+                      data: Array(data.history.length).fill(takeProfit),
+                      fill: false,
+                      borderColor: "#28a745",
+                      borderDash: [5, 5],
+                      pointRadius: 0,
+                    }
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  scales: {
+                    y: {
+                      beginAtZero: false,
+                    }
+                  }
+                }}
+              />
+            </div>
+          )}
+        </>
+      ) : !compareMode ? (
         // Single Strategy Mode
         <>
           {/* Radar or Bar Chart Comparison */}
@@ -453,9 +763,11 @@ export default function Home() {
               <option value="paroli">Paroli</option>
               <option value="fixed_percent">Fixed % of Bankroll</option>
               <option value="target_profit">Target Profit Goal</option>
-              
+              <option value="custom">🔧 Custom Strategy</option>
             </select>
           </div>
+
+          {strategy === "custom" && renderCustomStrategyBuilder()}
 
           <div style={{ marginBottom: "1rem" }}>
             <label>Base Bet:&nbsp;</label>
@@ -476,7 +788,7 @@ export default function Home() {
             />
           </div>
 
-          {(strategy === "martingale" || strategy === "paroli" || strategy === "fixed_percent" || strategy === "target_profit") && (
+          {(strategy === "martingale" || strategy === "paroli" || strategy === "fixed_percent" || strategy === "target_profit" || strategy === "custom") && (
             <div style={{ marginBottom: "1rem" }}>
               <label>Starting Bankroll:&nbsp;</label>
               <input
@@ -533,6 +845,7 @@ export default function Home() {
               {data.ruin_occurred !== null && (
                 <p>Risk of Ruin: <strong>{data.ruin_occurred ? "YES" : "NO"}</strong></p>
               )}
+              {data.target_reached && <p style={{ color: "green" }}>Target Reached: <strong>YES</strong></p>}
               {stats && (
                 <>
                   <p>📉 Max Drawdown: {(stats.maxDrawdown * 100).toFixed(2)}%</p>
@@ -608,7 +921,7 @@ export default function Home() {
             <div style={{ flex: "1", minWidth: "300px" }}>
               <h3>Select Strategies to Compare</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {["early", "mid", "high", "dual", "martingale", "paroli", "fixed_percent", "target_profit"].map(strat => (
+                {["early", "mid", "high", "dual", "martingale", "paroli", "fixed_percent", "target_profit", "custom"].map(strat => (
                   <label key={strat} style={{ 
                     display: "flex", 
                     alignItems: "center", 
@@ -630,7 +943,8 @@ export default function Home() {
                         strat === "martingale" ? "Martingale" :
                         strat === "paroli" ? "Paroli" :
                         strat === "fixed_percent" ? "Fixed % of Bankroll" :
-                        "Target Profit Goal"}
+                        strat === "target_profit" ? "Target Profit Goal" :
+                        "🔧 Custom Strategy"}
                     </span>
                   </label>
                 ))}
@@ -692,7 +1006,7 @@ export default function Home() {
                           <td style={{ padding: "8px", borderBottom: "1px solid #ddd" }}>
                             <div style={{ display: "flex", alignItems: "center" }}>
                               <div style={{ width: "12px", height: "12px", borderRadius: "50%", backgroundColor: strategyColors[result.strategy]?.border, marginRight: "8px" }}></div>
-                              {result.strategy}
+                              {result.strategy === "custom" ? "🔧 Custom" : result.strategy}
                             </div>
                           </td>
                           <td style={{ padding: "8px", textAlign: "right", borderBottom: "1px solid #ddd", fontWeight: "bold" }}>
@@ -771,6 +1085,7 @@ export default function Home() {
               <option value="paroli">Paroli</option>
               <option value="fixed_percent">Fixed % of Bankroll</option>
               <option value="target_profit">Target Profit Goal</option>
+              <option value="custom">🔧 Custom Strategy</option>
             </select>
             &nbsp;&nbsp;
             <label>Min Final Balance:&nbsp;</label>
@@ -780,8 +1095,35 @@ export default function Home() {
           </div>
           <ul>
             {filteredHistory.map((entry, index) => (
-              <li key={index}>
-                [{entry.timestamp}] <strong>{entry.strategy}</strong> - Final Balance: R{entry.json.final_balance.toFixed(2)}
+              <li key={index} style={{ marginBottom: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div 
+                    style={{ 
+                      width: "8px", 
+                      height: "8px", 
+                      borderRadius: "50%", 
+                      backgroundColor: strategyColors[entry.strategy]?.border || "#666"
+                    }}
+                  ></div>
+                  <span style={{ fontSize: "0.85rem", color: "#666" }}>
+                    [{new Date(entry.timestamp).toLocaleString()}]
+                  </span>
+                  <strong style={{ color: strategyColors[entry.strategy]?.border }}>
+                    {entry.strategy === "custom" ? "🔧 Custom" : entry.strategy}
+                  </strong>
+                  - Final Balance: 
+                  <span style={{ 
+                    fontWeight: "bold", 
+                    color: entry.json.final_balance >= entry.bankroll ? "#28a745" : "#dc3545" 
+                  }}>
+                    R{entry.json.final_balance.toFixed(2)}
+                  </span>
+                  {entry.customParams && (
+                    <span style={{ fontSize: "0.8rem", color: "#6c757d", marginLeft: "8px" }}>
+                      ({entry.customParams.cashOutTarget}x, {entry.customParams.betSequence})
+                    </span>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
