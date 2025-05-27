@@ -1,7 +1,8 @@
 import random
 from strategies import (
     early_cashout, mid_risk, high_risk, dual_bet, martingale_strategy,
-    paroli_strategy, fixed_percent_strategy, target_profit_strategy
+    paroli_strategy, fixed_percent_strategy, target_profit_strategy,
+    custom_strategy
 )
 
 
@@ -10,7 +11,9 @@ def generate_crash_multiplier():
     return max(1.01, 1 / (1 - r)) if r < 0.99 else 1.0
 
 
-def simulate_strategy(strategy, rounds, bet, bankroll=100, target_profit=50, percent_bet=5):
+def simulate_strategy(strategy, rounds, bet, bankroll=100, target_profit=50, percent_bet=5,
+                      cashout_target=2.0, bet_sequence="1,2,4", max_bet=20,
+                      stop_loss=50, take_profit=200, progression_type="loss"):
     if strategy == "early":
         history = early_cashout(rounds, bet, cashout=1.5)
         return {"history": history, "final_balance": history[-1], "ruin_occurred": False, "max_loss_streak": None}
@@ -31,5 +34,16 @@ def simulate_strategy(strategy, rounds, bet, bankroll=100, target_profit=50, per
         return fixed_percent_strategy(rounds, percent=percent_bet, bankroll=bankroll)
     elif strategy == "target_profit":
         return target_profit_strategy(rounds, base_bet=bet, bankroll=bankroll, target_profit=target_profit)
+    elif strategy == "custom":
+        return custom_strategy(
+            rounds=rounds,
+            bankroll=bankroll,
+            cashout_target=cashout_target,
+            bet_sequence=bet_sequence,
+            max_bet=max_bet,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            progression_type=progression_type
+        )
     else:
         return {"error": "Invalid strategy"}

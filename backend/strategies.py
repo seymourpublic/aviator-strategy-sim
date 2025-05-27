@@ -194,3 +194,102 @@ def target_profit_strategy(rounds, base_bet=1.0, target_profit=50, cashout=2.0, 
         "ruin_occurred": ruin,
         "max_loss_streak": max_loss_streak,
     }
+
+
+def custom_strategy(rounds, bankroll=100, cashout_target=2.0, bet_sequence="1,2,4",
+                    max_bet=20, stop_loss=50, take_profit=200, progression_type="loss"):
+    """
+    Custom strategy with user-defined parameters
+
+    Args:
+        rounds: Number of rounds to simulate
+        bankroll: Starting bankroll
+        cashout_target: Multiplier to cash out at
+        bet_sequence: Comma-separated string of bet amounts (e.g., "1,2,4,8")
+        max_bet: Maximum bet size allowed
+        stop_loss: Stop when bankroll drops to this level
+        take_profit: Stop when bankroll reaches this level
+        progression_type: "loss" (increase on loss) or "win" (increase on win)
+    """
+    balance = bankroll
+    history = []
+    max_loss_streak = 0
+    loss_streak = 0
+    win_streak = 0
+    ruin = False
+    target_reached = False
+
+    # Parse bet sequence
+    try:
+        bet_amounts = [float(x.strip()) for x in bet_sequence.split(',')]
+    except:
+        bet_amounts = [1.0]  # fallback
+
+    if not bet_amounts:
+        bet_amounts = [1.0]
+
+    sequence_index = 0
+    current_bet = bet_amounts[0]
+
+    for round_num in range(rounds):
+        # Check stop conditions
+        if balance <= stop_loss:
+            ruin = True
+            break
+
+        if balance >= take_profit:
+            target_reached = True
+            break
+
+        # Ensure bet doesn't exceed max_bet or available balance
+        current_bet = min(current_bet, max_bet, balance)
+
+        if current_bet < 0.01 or balance < current_bet:
+            ruin = True
+            break
+
+        crash = generate_crash_multiplier()
+
+        if crash >= cashout_target:
+            # Win
+            profit = (cashout_target - 1) * current_bet
+            balance += profit
+            loss_streak = 0
+            win_streak += 1
+
+            # Adjust bet based on progression type
+            if progression_type == "win":
+                # Increase bet on win (Paroli-style)
+                sequence_index = min(sequence_index + 1, len(bet_amounts) - 1)
+            else:
+                # Reset to first bet on win (Martingale-style)
+                sequence_index = 0
+
+        else:
+            # Loss
+            balance -= current_bet
+            win_streak = 0
+            loss_streak += 1
+            max_loss_streak = max(max_loss_streak, loss_streak)
+
+            # Adjust bet based on progression type
+            if progression_type == "loss":
+                # Increase bet on loss (Martingale-style)
+                sequence_index = min(sequence_index + 1, len(bet_amounts) - 1)
+            else:
+                # Reset to first bet on loss (Paroli-style)
+                sequence_index = 0
+
+        # Set next bet amount
+        current_bet = bet_amounts[sequence_index]
+
+        history.append(round(balance, 2))
+
+    return {
+        "history": history,
+        "final_balance": round(balance, 2),
+        "ruin_occurred": ruin,
+        "target_reached": target_reached,
+        "max_loss_streak": max_loss_streak,
+        "rounds_played": len(history),
+    }

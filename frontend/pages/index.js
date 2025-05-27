@@ -453,6 +453,7 @@ export default function Home() {
               <option value="paroli">Paroli</option>
               <option value="fixed_percent">Fixed % of Bankroll</option>
               <option value="target_profit">Target Profit Goal</option>
+              
             </select>
           </div>
 
