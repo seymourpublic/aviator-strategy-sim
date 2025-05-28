@@ -122,7 +122,14 @@ export default function Home() {
   const [takeProfit, setTakeProfit] = useState(200);
   const [progressionType, setProgressionType] = useState("loss");
   
-  // New state for strategy comparison
+  // Realistic conditions parameters
+  const [realisticConditions, setRealisticConditions] = useState(true);
+  const [minBetLimit, setMinBetLimit] = useState(0.10);
+  const [maxBetLimit, setMaxBetLimit] = useState(1000.0);
+  const [networkDelay, setNetworkDelay] = useState(true);
+  const [errorSimulation, setErrorSimulation] = useState(true);
+  
+  // Strategy comparison state
   const [compareMode, setCompareMode] = useState(false);
   const [selectedStrategies, setSelectedStrategies] = useState([]);
   const [overlayChart, setOverlayChart] = useState(true);
@@ -157,7 +164,7 @@ export default function Home() {
 
   const comparisonData = () => {
     const [first, second] = historyLog.slice(0, 2);
-    if (!first || second) return null;
+    if (!first || !second) return null;
     const stat1 = computeStats(first.json.history, first.bankroll);
     const stat2 = computeStats(second.json.history, second.bankroll);
     return {
@@ -245,7 +252,12 @@ export default function Home() {
         rounds,
         bankroll,
         target_profit: targetProfit,
-        percent_bet: percentBet
+        percent_bet: percentBet,
+        realistic_conditions: realisticConditions,
+        min_bet: minBetLimit,
+        max_bet: maxBetLimit,
+        network_delay: networkDelay,
+        error_simulation: errorSimulation
       });
 
       // Add custom strategy parameters if custom strategy is selected
@@ -276,6 +288,11 @@ export default function Home() {
           percentBet, 
           json, 
           timestamp: new Date().toISOString(),
+          realisticConditions,
+          minBetLimit,
+          maxBetLimit,
+          networkDelay,
+          errorSimulation,
           // Include custom strategy parameters
           customParams: strategy === "custom" ? {
             cashOutTarget,
@@ -314,7 +331,12 @@ export default function Home() {
           rounds: comparisonParameters.rounds,
           bankroll: comparisonParameters.bankroll,
           target_profit: targetProfit,
-          percent_bet: percentBet
+          percent_bet: percentBet,
+          realistic_conditions: realisticConditions,
+          min_bet: minBetLimit,
+          max_bet: maxBetLimit,
+          network_delay: networkDelay,
+          error_simulation: errorSimulation
         });
 
         // Add custom strategy parameters if comparing custom strategy
@@ -354,7 +376,12 @@ export default function Home() {
           targetProfit,
           percentBet,
           json: result.json,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          realisticConditions,
+          minBetLimit,
+          maxBetLimit,
+          networkDelay,
+          errorSimulation
         }));
         setHistoryLog([...newEntries, ...historyLog]);
       }
@@ -391,7 +418,11 @@ export default function Home() {
       targetProfit: entry.targetProfit,
       percentBet: entry.percentBet,
       finalBalance: entry.json.final_balance,
-      ruin: entry.json.ruin_occurred
+      ruin: entry.json.ruin_occurred,
+      networkErrors: entry.json.network_errors || 0,
+      totalDelay: entry.json.total_delay || 0,
+      betLimitHits: entry.json.bet_limit_hits || 0,
+      realisticConditions: entry.realisticConditions || false
     }));
     downloadCSV(rows);
   };
@@ -411,12 +442,113 @@ export default function Home() {
         maxDrawdown: (stats.maxDrawdown * 100).toFixed(2),
         maxWinStreak: stats.maxWinStreak,
         maxLossStreak: stats.maxLossStreak,
-        ruin: result.json.ruin_occurred || false
+        ruin: result.json.ruin_occurred || false,
+        networkErrors: result.json.network_errors || 0,
+        totalDelay: result.json.total_delay || 0,
+        betLimitHits: result.json.bet_limit_hits || 0
       };
     });
     
     downloadCSV(rows, "strategy_comparison.csv");
   };
+
+  const renderRealisticConditionsPanel = () => (
+    <div style={{ 
+      background: "#fff3cd", 
+      padding: "1.5rem", 
+      borderRadius: "8px", 
+      marginBottom: "2rem",
+      border: "2px solid #ffeaa7"
+    }}>
+      <h3 style={{ color: "#856404", marginBottom: "1rem", display: "flex", alignItems: "center" }}>
+        🧪 Realistic Conditions
+        <label style={{ marginLeft: "auto", display: "flex", alignItems: "center", fontSize: "0.9rem" }}>
+          <input
+            type="checkbox"
+            checked={realisticConditions}
+            onChange={(e) => setRealisticConditions(e.target.checked)}
+            style={{ marginRight: "0.5rem" }}
+          />
+          Enable Realistic Simulation
+        </label>
+      </h3>
+      
+      {realisticConditions && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
+          {/* Betting Limits */}
+          <div style={{ background: "white", padding: "1rem", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+            <h4 style={{ marginBottom: "0.8rem", color: "#495057", display: "flex", alignItems: "center" }}>
+              💰 Betting Limits
+            </h4>
+            <div style={{ marginBottom: "0.8rem" }}>
+              <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Min Bet:</label>
+              <input
+                type="number"
+                value={minBetLimit}
+                onChange={(e) => setMinBetLimit(parseFloat(e.target.value) || 0.10)}
+                step="0.01"
+                min="0.01"
+                style={{ width: "100%", padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+              />
+              <small style={{ color: "#6c757d" }}>Minimum bet amount allowed</small>
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Max Bet:</label>
+              <input
+                type="number"
+                value={maxBetLimit}
+                onChange={(e) => setMaxBetLimit(parseFloat(e.target.value) || 1000.0)}
+                step="10"
+                min="1"
+                style={{ width: "100%", padding: "0.5rem", border: "1px solid #ced4da", borderRadius: "4px" }}
+              />
+              <small style={{ color: "#6c757d" }}>Maximum bet amount allowed</small>
+            </div>
+          </div>
+
+          {/* Network Conditions */}
+          <div style={{ background: "white", padding: "1rem", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+            <h4 style={{ marginBottom: "0.8rem", color: "#495057" }}>🌐 Network Simulation</h4>
+            <div style={{ marginBottom: "0.8rem" }}>
+              <label style={{ display: "flex", alignItems: "center", marginBottom: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  checked={networkDelay}
+                  onChange={(e) => setNetworkDelay(e.target.checked)}
+                  style={{ marginRight: "0.5rem" }}
+                />
+                <span style={{ fontWeight: "500" }}>Network Delays</span>
+              </label>
+              <small style={{ color: "#6c757d" }}>Simulate 50ms-500ms delays</small>
+            </div>
+            <div>
+              <label style={{ display: "flex", alignItems: "center", marginBottom: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  checked={errorSimulation}
+                  onChange={(e) => setErrorSimulation(e.target.checked)}
+                  style={{ marginRight: "0.5rem" }}
+                />
+                <span style={{ fontWeight: "500" }}>Connection Errors</span>
+              </label>
+              <small style={{ color: "#6c757d" }}>5% chance of network failures</small>
+            </div>
+          </div>
+
+          {/* Simulation Impact */}
+          <div style={{ background: "#e9ecef", padding: "1rem", borderRadius: "6px", border: "1px solid #dee2e6" }}>
+            <h5 style={{ marginBottom: "0.5rem", color: "#495057" }}>📊 Impact Summary</h5>
+            <ul style={{ margin: "0", paddingLeft: "1.2rem", fontSize: "0.9rem" }}>
+              <li style={{ marginBottom: "0.3rem" }}>Betting limits prevent unrealistic bet sizes</li>
+              <li style={{ marginBottom: "0.3rem" }}>Network delays simulate real-world latency</li>
+              <li style={{ marginBottom: "0.3rem" }}>Connection errors cause missed rounds</li>
+              <li style={{ marginBottom: "0.3rem" }}>Results closer to actual platform experience</li>
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const renderCustomStrategyBuilder = () => (
     <div style={{ 
@@ -433,7 +565,7 @@ export default function Home() {
         <div style={{ background: "white", padding: "1rem", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
           <h4 style={{ marginBottom: "0.8rem", color: "#495057" }}>🎯 Cash-out Target</h4>
           <div style={{ marginBottom: "0.8rem" }}>
-            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Multiplier:&nbsp;</label>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Multiplier:</label>
             <input
               type="number"
               value={cashOutTarget}
@@ -450,7 +582,7 @@ export default function Home() {
         <div style={{ background: "white", padding: "1rem", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
           <h4 style={{ marginBottom: "0.8rem", color: "#495057" }}>📈 Bet Progression</h4>
           <div style={{ marginBottom: "0.8rem" }}>
-            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Bet Sequence:&nbsp;</label>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Bet Sequence:</label>
             <input
               type="text"
               value={betSequence}
@@ -462,7 +594,7 @@ export default function Home() {
           </div>
           
           <div style={{ marginBottom: "0.8rem" }}>
-            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Progression Type:&nbsp;</label>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Progression Type:</label>
             <select 
               value={progressionType} 
               onChange={(e) => setProgressionType(e.target.value)}
@@ -474,7 +606,7 @@ export default function Home() {
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Max Bet Size:&nbsp;</label>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Max Bet Size:</label>
             <input
               type="number"
               value={maxBet}
@@ -490,7 +622,7 @@ export default function Home() {
         <div style={{ background: "white", padding: "1rem", borderRadius: "6px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
           <h4 style={{ marginBottom: "0.8rem", color: "#495057" }}>⚠️ Risk Management</h4>
           <div style={{ marginBottom: "0.8rem" }}>
-            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Stop Loss (Balance):&nbsp;</label>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Stop Loss (Balance):</label>
             <input
               type="number"
               value={stopLoss}
@@ -503,7 +635,7 @@ export default function Home() {
           </div>
           
           <div>
-            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Take Profit (Balance):&nbsp;</label>
+            <label style={{ display: "block", marginBottom: "0.3rem", fontWeight: "500" }}>Take Profit (Balance):</label>
             <input
               type="number"
               value={takeProfit}
@@ -542,6 +674,40 @@ export default function Home() {
     </div>
   );
 
+  const renderRealisticStats = (data) => {
+    if (!realisticConditions) return null;
+    
+    return (
+      <div style={{ 
+        background: "#fff3cd", 
+        padding: "1rem", 
+        borderRadius: "6px", 
+        marginTop: "1rem",
+        border: "1px solid #ffeaa7"
+      }}>
+        <h4 style={{ color: "#856404", marginBottom: "0.5rem" }}>🧪 Realistic Conditions Impact</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+          <div>
+            <p style={{ margin: "0.2rem 0", fontSize: "0.9rem" }}>
+              <strong>Network Errors:</strong> {data.network_errors || 0}
+            </p>
+            <p style={{ margin: "0.2rem 0", fontSize: "0.9rem" }}>
+              <strong>Total Delay:</strong> {data.total_delay || 0}s
+            </p>
+          </div>
+          <div>
+            <p style={{ margin: "0.2rem 0", fontSize: "0.9rem" }}>
+              <strong>Bet Limit Hits:</strong> {data.bet_limit_hits || 0}
+            </p>
+            <p style={{ margin: "0.2rem 0", fontSize: "0.9rem" }}>
+              <strong>Actual Rounds:</strong> {data.history?.length || 0}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding: "2rem" }}>
       <h1>Aviator Strategy Simulator</h1>
@@ -550,8 +716,16 @@ export default function Home() {
       {highlightedEntry && (
         <div style={{ background: "#e0ffe0", padding: "1rem", marginBottom: "1rem", borderRadius: "6px" }}>
           <strong>🏆 Best Run:</strong> {highlightedEntry.strategy} - R{highlightedEntry.json.final_balance.toFixed(2)}
+          {highlightedEntry.realisticConditions && (
+            <span style={{ marginLeft: "10px", fontSize: "0.8rem", color: "#666" }}>
+              (Realistic: {highlightedEntry.json.network_errors || 0} errors, {highlightedEntry.json.bet_limit_hits || 0} limit hits)
+            </span>
+          )}
         </div>
       )}
+
+      {/* Realistic Conditions Panel */}
+      {renderRealisticConditionsPanel()}
       
       {/* Tabs for Single/Compare/Custom mode */}
       <div style={{ marginBottom: "1.5rem", display: "flex", gap: "4px" }}>
@@ -681,6 +855,8 @@ export default function Home() {
                   )}
                 </div>
               </div>
+
+              {renderRealisticStats(data)}
 
               <Line
                 data={{
@@ -853,6 +1029,9 @@ export default function Home() {
                   <p>📊 Max Loss Streak: {stats.maxLossStreak}</p>
                 </>
               )}
+
+              {renderRealisticStats(data)}
+
               <Line
                 data={{
                   labels: data.history.map((_, i) => i),
@@ -996,6 +1175,12 @@ export default function Home() {
                       <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #ddd" }}>ROI</th>
                       <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #ddd" }}>Max Drawdown</th>
                       <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #ddd" }}>Risk of Ruin</th>
+                      {realisticConditions && (
+                        <>
+                          <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #ddd" }}>Network Errors</th>
+                          <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #ddd" }}>Bet Limits Hit</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -1024,6 +1209,16 @@ export default function Home() {
                           <td style={{ padding: "8px", textAlign: "right", borderBottom: "1px solid #ddd" }}>
                             {result.json.ruin_occurred ? "YES" : "NO"}
                           </td>
+                          {realisticConditions && (
+                            <>
+                              <td style={{ padding: "8px", textAlign: "right", borderBottom: "1px solid #ddd" }}>
+                                {result.json.network_errors || 0}
+                              </td>
+                              <td style={{ padding: "8px", textAlign: "right", borderBottom: "1px solid #ddd" }}>
+                                {result.json.bet_limit_hits || 0}
+                              </td>
+                            </>
+                          )}
                         </tr>
                       );
                     })}
@@ -1096,7 +1291,7 @@ export default function Home() {
           <ul>
             {filteredHistory.map((entry, index) => (
               <li key={index} style={{ marginBottom: "0.5rem" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                   <div 
                     style={{ 
                       width: "8px", 
@@ -1121,6 +1316,11 @@ export default function Home() {
                   {entry.customParams && (
                     <span style={{ fontSize: "0.8rem", color: "#6c757d", marginLeft: "8px" }}>
                       ({entry.customParams.cashOutTarget}x, {entry.customParams.betSequence})
+                    </span>
+                  )}
+                  {entry.realisticConditions && (
+                    <span style={{ fontSize: "0.75rem", color: "#856404", backgroundColor: "#fff3cd", padding: "2px 6px", borderRadius: "3px", marginLeft: "8px" }}>
+                      🧪 {entry.json.network_errors || 0}E, {entry.json.bet_limit_hits || 0}L
                     </span>
                   )}
                 </div>
