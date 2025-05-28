@@ -15,27 +15,20 @@ def simulate():
     target_profit = float(request.args.get('target_profit', 50))
     percent_bet = float(request.args.get('percent_bet', 5))
 
-    # Custom strategy parameters
-    cashout_target = float(request.args.get('cashout_target', 2.0))
-    bet_sequence = request.args.get('bet_sequence', '1,2,4')
-    max_bet = float(request.args.get('max_bet', 20))
-    stop_loss = float(request.args.get('stop_loss', 50))
-    take_profit = float(request.args.get('take_profit', 200))
-    progression_type = request.args.get('progression_type', 'loss')
+    # Realistic conditions parameters
+    realistic_conditions = request.args.get('realistic_conditions', 'true').lower() == 'true'
+    min_bet = float(request.args.get('min_bet', 0.10))
+    max_bet = float(request.args.get('max_bet', 1000.0))
+    network_delay = request.args.get('network_delay', 'true').lower() == 'true'
+    error_simulation = request.args.get('error_simulation', 'true').lower() == 'true'
 
     result = simulate_strategy(
-        strategy=strategy,
-        rounds=rounds,
-        bet=bet,
-        bankroll=bankroll,
-        target_profit=target_profit,
-        percent_bet=percent_bet,
-        cashout_target=cashout_target,
-        bet_sequence=bet_sequence,
+        strategy, rounds, bet, bankroll, target_profit, percent_bet,
+        realistic_conditions=realistic_conditions,
+        min_bet=min_bet,
         max_bet=max_bet,
-        stop_loss=stop_loss,
-        take_profit=take_profit,
-        progression_type=progression_type
+        network_delay=network_delay,
+        error_simulation=error_simulation
     )
     return jsonify(result)
 
